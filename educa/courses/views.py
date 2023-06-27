@@ -67,37 +67,37 @@ class CourseModuleUpdateView(TemplateResponseMixin, View):
     def get_formset(self, data=None):
         return ModuleFormSet(instance=self.course, data=data)
 
-    def dispath(self, req, pk):
-        self.course = get_object_or_404(Course, id=pk, owner=req.user)
-        return super().dispath(req, pk)
+    def dispatch(self, request, pk):
+        self.course = get_object_or_404(Course,
+                                        id=pk,
+                                        owner=request.user)
+        return super().dispatch(request, pk)
 
-    def get(self, req, *args, **kwargs):
+    def get(self, request, *args, **kwargs):
         formset = self.get_formset()
-        return self.render_to_response({
-            'courses': self.course,
-            'formset': formset
-        })
-
-    def post(self, req, *args, **kwargs):
-        formset = self.get_formset(data=req.POST)
-        if formset.is_valid():
-            formset.save()
-            return redirect('manage_course_list')
         return self.render_to_response({
             'course': self.course,
             'formset': formset
         })
+
+    def post(self, request, *args, **kwargs):
+        formset = self.get_formset(data=request.POST)
+        if formset.is_valid():
+            formset.save()
+            return redirect('manage_course_list')
+        return self.render_to_response({'course': self.course,
+                                        'formset': formset})
 
 
 class ContentCreateUpdateView(TemplateResponseMixin, View):
     module = None
     model = None
     obj = None
-    template_name = 'course/manage/content/form.html'
+    template_name = 'courses/manage/content/form.html'
 
     def get_model(self, model_name):
         if model_name in ['text', 'image', 'video', 'file']:
-            return apps.get_model(app_label='courses', app_name=model_name)
+            return apps.get_model(app_label='courses', model_name=model_name)
         return None
 
     def get_form(self, model, *args, **kwargs):
@@ -109,7 +109,7 @@ class ContentCreateUpdateView(TemplateResponseMixin, View):
             Module, id=module_id, course__owner=req.user)
         self.model = self.get_model(model_name)
 
-        if id:
+        if not id:
             self.obj = get_object_or_404(self.model, id=id, owner=req.user)
         return super().dispatch(req, module_id, model_name, id)
 
@@ -138,3 +138,22 @@ class ContentCreateUpdateView(TemplateResponseMixin, View):
             'form': form,
             'object': self.obj
         })
+
+
+class ContentDeleteView(View):
+    def post(self, req, id):
+        content = get_object_or_404(
+            Content, id=id, module__course__owner=req.user)
+        module = content.module
+        content.item.delete()
+        content.delete()
+        return redirect('module_content_list', module.id)
+
+
+class ModuleContentListView(TemplateResponseMixin, View):
+    template_name = 'courses/manage/module/content_list.html'
+
+    def get(self, req, module_id):
+        module = get_object_or_404(
+            Module, id=module_id, course__owner=req.user)
+        return self.render_to_response({'module': module})
